@@ -4,32 +4,39 @@ packages:
   - packages/**
 
 scripts:
-  lint:all:
-    run: melos run analyze && melos run format
-    description: Run all static analysis checks
-
   analyze:
     run: |
-      melos exec -c 5 -- \
-        dart analyze . --fatal-infos
+      melos exec -c 1 -- \
+        flutter analyze .
     description: |
       Run `dart analyze` in all packages.
        - Note: you can also rely on your IDEs Dart Analysis / Issues window.
+  generate:
+    run: melos run generate:dart && melos run generate:flutter
+    description: Build all generated files for Dart & Flutter packages in this project.
 
-  format:
-    run: dart pub global run flutter_plugin_tools format
-    description: |
-      Build a specific example app for Android.
-       - Requires `flutter_plugin_tools` (`pub global activate flutter_plugin_tools`).
-       - Requires `clang-format` (can be installed via Brew on macOS).
+  generate:dart:
+    run: melos exec -c 1 --depends-on="build_runner" --no-flutter -- "dart run build_runner build --delete-conflicting-outputs"
+    description: Build all generated files for Dart packages in this project.
 
-  # Clean things very deeply, can be used to establish "pristine checkout" status
-  clean:deep: >
-    git clean -x -d -f -q
+  generate:flutter:
+    run: melos exec -c 1 --depends-on="build_runner" --flutter -- "flutter pub run build_runner build --delete-conflicting-outputs"
+    description: Build all generated files for Flutter packages in this project.
 
-  # Additional cleanup lifecycle script, executed when `melos clean` is ran.
-  postclean: >
-    melos exec -c 6 -- "flutter clean"
-  # Run all targets generally expected in CI for a full local quality check
-  qualitycheck: >
-    melos run clean:deep && melos clean && melos bootstrap && melos run lint:all && melos run build:all && melos run test:all
+  test:
+    run: melos run test:dart --no-select && melos run test:flutter --no-select
+    description: Run all Dart & Flutter tests in this project.
+
+  test:dart:
+    run: melos exec  -c 1 --fail-fast -- "\$MELOS_ROOT_PATH/scripts/coverage.sh"
+    description: Run Dart tests for a specific package in this project.
+    select-package:
+      flutter: false
+      dir-exists: test
+
+  test:flutter:
+    run: melos exec --dir-exists="test" -c 1 --fail-fast -- "flutter test --coverage"
+    description: Run Flutter tests for a specific package in this project.
+    select-package:
+      flutter: true
+      dir-exists: test
