@@ -1,0 +1,72 @@
+# Created with package:mono_repo v5.0.2
+name: Dart CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+defaults:
+  run:
+    shell: bash
+env:
+  PUB_ENVIRONMENT: bot.github
+
+jobs:
+  job_001:
+    name: "analyzer_and_format; PKGS: dart_intl, flutter_intl; `dart format --output=none --set-exit-if-changed .`, `dart analyze --fatal-infos .`"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache Pub hosted dependencies
+        uses: actions/cache@v2.1.6
+        with:
+          path: "~/.pub-cache/hosted"
+          key: "os:ubuntu-latest;pub-cache-hosted;dart:dev;packages:dart_intl-flutter_intl;commands:format-analyze"
+          restore-keys: |
+            os:ubuntu-latest;pub-cache-hosted;dart:dev;packages:dart_intl-flutter_intl
+            os:ubuntu-latest;pub-cache-hosted;dart:dev
+            os:ubuntu-latest;pub-cache-hosted
+            os:ubuntu-latest
+      - uses: dart-lang/setup-dart@v1.2
+        with:
+          sdk: dev
+      - id: checkout
+        uses: actions/checkout@v2.3.4
+      - id: dart_intl_pub_upgrade
+        name: dart_intl; dart pub upgrade
+        if: "always() && steps.checkout.conclusion == 'success'"
+        working-directory: dart_intl
+        run: dart pub upgrade
+      - name: "dart_intl; dart format --output=none --set-exit-if-changed ."
+        if: "always() && steps.dart_intl_pub_upgrade.conclusion == 'success'"
+        working-directory: dart_intl
+        run: "dart format --output=none --set-exit-if-changed ."
+      - name: "dart_intl; dart analyze --fatal-infos ."
+        if: "always() && steps.dart_intl_pub_upgrade.conclusion == 'success'"
+        working-directory: dart_intl
+        run: dart analyze --fatal-infos .
+      - id: flutter_intl_pub_upgrade
+        name: flutter_intl; dart pub upgrade
+        if: "always() && steps.checkout.conclusion == 'success'"
+        working-directory: flutter_intl
+        run: dart pub upgrade
+      - name: "flutter_intl; dart format --output=none --set-exit-if-changed ."
+        if: "always() && steps.flutter_intl_pub_upgrade.conclusion == 'success'"
+        working-directory: flutter_intl
+        run: "dart format --output=none --set-exit-if-changed ."
+      - name: "flutter_intl; dart analyze --fatal-infos ."
+        if: "always() && steps.flutter_intl_pub_upgrade.conclusion == 'success'"
+        working-directory: flutter_intl
+        run: dart analyze --fatal-infos .
+  job_002:
+    name: Notify failure
+    runs-on: self-hosted
+    if: failure()
+    steps:
+      - run: |
+          curl -H "Content-Type: application/json" -X POST -d \
+            "{'text':'Build failed! ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}'}" \
+            "${CHAT_WEBHOOK_URL}"
+        env:
+          CHAT_WEBHOOK_URL: "${{ secrets.CHAT_WEBHOOK_URL }}"
+    needs:
+      - job_001
